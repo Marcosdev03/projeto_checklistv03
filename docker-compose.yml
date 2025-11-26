@@ -1,0 +1,33 @@
+services:
+  # 1. Serviço da Aplicação (Django/DRF)
+  web:
+    build: .
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    env_file:
+      - .env   # <-- AQUI! Carrega o arquivo .env automaticamente
+    environment:
+      - DEBUG=1
+      - DB_NAME=checklist_db
+      - DB_USER=checklist_user
+      - DB_PASSWORD=uma_senha_forte
+      - DB_HOST=db
+      - DB_PORT=5432
+
+  # 2. Serviço do Banco de Dados (PostgreSQL)
+  db:
+    image: postgres:14-alpine
+    environment:
+      - POSTGRES_DB=checklist_db
+      - POSTGRES_USER=checklist_user
+      - POSTGRES_PASSWORD=uma_senha_forte
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+
+volumes:
+  postgres_data:
