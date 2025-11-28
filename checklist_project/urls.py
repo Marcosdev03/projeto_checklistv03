@@ -11,4 +11,6 @@ urlpatterns = [
 
     # Rotas do módulo de username
     path("api/username/", include("register_username.urls")),
+
+    path("api/tasks/", include("tasks.urls")),
 ]

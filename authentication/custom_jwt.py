@@ -1,4 +1,3 @@
-from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework.exceptions import AuthenticationFailed
 from django.contrib.auth import authenticate
@@ -13,27 +12,21 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         email = attrs.get("email")
         password = attrs.get("password")
 
-        # 1️⃣ Verificar se usuário existe
-        try:
-            user = User.objects.get(email=email)
-        except User.DoesNotExist:
+        # 1️⃣ Autenticação com email (USERNAME_FIELD = email)
+        user = authenticate(email=email, password=password)
+        if not user:
             raise AuthenticationFailed({"detail": "E-mail ou senha incorretos."})
 
-        # 2️⃣ Verificar se usuário está ativo (e-mail verificado)
+        # 2️⃣ Usuário precisa estar ativo
         if not user.is_active:
             raise AuthenticationFailed(
                 {"detail": "Conta não verificada. Verifique seu e-mail para ativá-la."}
             )
 
-        # 3️⃣ Verificar credenciais
-        user_auth = authenticate(email=email, password=password)
-        if not user_auth:
-            raise AuthenticationFailed({"detail": "E-mail ou senha incorretos."})
-
-        # 4️⃣ Login válido → gera access + refresh
+        # 3️⃣ Gera tokens padrão (access + refresh)
         data = super().validate(attrs)
 
-        # 5️⃣ Adiciona informações extras
+        # 4️⃣ Informações extras opcionais
         profile = getattr(user, "profile", None)
         data["has_username"] = bool(profile and profile.username)
         data["current_username"] = profile.username if profile else None
