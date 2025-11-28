@@ -4,13 +4,13 @@ services:
     build: .
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
-      - .:/app
+      - .:/app:Z
     ports:
       - "8000:8000"
     depends_on:
       - db
     env_file:
-      - .env   # <-- AQUI! Carrega o arquivo .env automaticamente
+      - .env # <-- AQUI! Carrega o arquivo .env automaticamente
     environment:
       - DEBUG=1
       - DB_NAME=checklist_db
