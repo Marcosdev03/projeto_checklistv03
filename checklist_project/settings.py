@@ -111,11 +111,19 @@ USE_TZ = True
 # =======================================================
 # STATIC FILES
 # =======================================================
-
 STATIC_URL = '/static/'
+
+# Diretório onde os arquivos estáticos serão COLETADOS
+# /app/staticfiles dentro do container
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+# NOVO: Diretórios ADICIONAIS onde o Django deve PROCURAR arquivos estáticos.
+# Esta linha é crucial para garantir que os arquivos do Admin e
+# qualquer static file na raiz do projeto sejam encontrados pelo collectstatic.
+STATICFILES_DIRS = [
+    # Adicione aqui o caminho para a pasta 'static' na raiz do seu projeto (se existir)
+    # Exemplo: BASE_DIR / "static"
+]
 
 # =======================================================
 # CUSTOM USER
@@ -160,3 +168,13 @@ SIMPLE_JWT = {
 # =======================================================
 
 CORS_ALLOW_ALL_ORIGINS = True  # dev
+
+# =======================================================
+# TRUSTED ORIGINS (OBRIGATÓRIO COM NGINX)
+# =======================================================
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    # "https://seu-dominio.com",  # produção
+]
