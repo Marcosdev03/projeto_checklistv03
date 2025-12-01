@@ -1,6 +1,8 @@
 services:
+
   web:
     build: .
+    entrypoint: /app/entrypoint.sh
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - .:/app
@@ -23,9 +25,9 @@ services:
   db:
     image: postgres:14-alpine
     environment:
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data/
 
