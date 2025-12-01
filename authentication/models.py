@@ -38,6 +38,9 @@ class CustomUserManager(BaseUserManager):
 # CustomUser
 # ==========================================
 class CustomUser(AbstractBaseUser, PermissionsMixin):
+    """
+    Usuário autenticado por e-mail (USERNAME_FIELD = email).
+    """
     email = models.EmailField(unique=True)
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=False)
@@ -53,9 +56,15 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
 
 # ==========================================
-# PasswordResetCode
+# PasswordResetCode – fluxo de reset de senha
 # ==========================================
 class PasswordResetCode(models.Model):
+    """
+    Fluxo "esqueci minha senha":
+      1) Gera código e envia pro e-mail
+      2) Valida código e gera temp_token
+      3) Troca senha usando temp_token
+    """
     email = models.EmailField(max_length=254)
     code = models.CharField(max_length=128)  # hash do código
     temp_token = models.CharField(max_length=64, null=True, blank=True)
@@ -77,22 +86,44 @@ class PasswordResetCode(models.Model):
 
 
 # ==========================================
-# EmailVerificationCode
+# RegistrationCode – fluxo novo de registro em 3 passos
 # ==========================================
-class EmailVerificationCode(models.Model):
-    user = models.OneToOneField(
-        CustomUser,
-        on_delete=models.CASCADE,
-        related_name="email_verification"
-    )
-    code = models.CharField(max_length=128)
-    created_at = models.DateTimeField(auto_now_add=True)
+class RegistrationCode(models.Model):
+    """
+    Fluxo de registro:
 
-    def set_code(self, raw_code):
+      PASSO 1: /register/send-code/
+        - recebe email
+        - gera código
+        - salva como hash
+        - envia e-mail
+        - NÃO cria usuário ainda
+
+      PASSO 2: /register/verify-code/
+        - recebe email + código
+        - valida
+        - gera temp_token
+
+      PASSO 3: /register/complete/
+        - recebe email + temp_token + senha
+        - cria usuário ativo
+        - apaga este registro
+    """
+    email = models.EmailField(max_length=254, unique=True)
+    code = models.CharField(max_length=128)  # código salvo como hash
+    temp_token = models.CharField(max_length=64, null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+
+    def set_code(self, raw_code: str):
         self.code = make_password(raw_code)
 
-    def check_code(self, raw_code):
+    def check_code(self, raw_code: str) -> bool:
         return check_password(raw_code, self.code)
 
+    def is_expired(self) -> bool:
+        return timezone.now() > self.expires_at
+
     def __str__(self):
-        return f"Verificação de {self.user.email}"
+        return f"Registro pendente para {self.email}"

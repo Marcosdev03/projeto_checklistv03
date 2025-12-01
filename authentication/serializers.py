@@ -7,41 +7,108 @@ from datetime import timedelta
 import re
 import uuid
 import random
-from .models import PasswordResetCode, CustomUser, EmailVerificationCode
 
+from .models import (
+    PasswordResetCode,
+    CustomUser,
+    RegistrationCode,
+)
 
 User = get_user_model()
 
 
 # ==========================================
-# RegisterSerializer – Registro de usuário
+# FLUXO NOVO DE REGISTRO – PASSO 1
+# Enviar código para o e-mail (sem criar usuário ainda)
 # ==========================================
+class RegistrationSendCodeSerializer(serializers.Serializer):
+    email = serializers.EmailField()
 
-class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(
-        write_only=True,
-        error_messages={
-            "required": "A senha é obrigatória.",
-            "blank": "A senha não pode estar vazia.",
-            "min_length": "A senha precisa ter pelo menos 8 caracteres.",
-        }
-    )
+    def validate_email(self, value):
+        email = value.lower()
 
-    email = serializers.EmailField(
-        error_messages={
-            "invalid": "Informe um e-mail válido.",
-            "required": "O e-mail é obrigatório.",
-            "blank": "O e-mail não pode estar vazio."
-        }
-    )
+        # Se já existe usuário, não permite novo registro
+        if User.objects.filter(email=email).exists():
+            raise serializers.ValidationError("Este e-mail já está cadastrado.")
 
-    class Meta:
-        model = CustomUser
-        fields = ["email", "password"]
+        return email
+
+    def save(self):
+        email = self.validated_data["email"].lower()
+
+        raw_code = f"{random.randint(100000, 999999)}"
+        expires_at = timezone.now() + timedelta(minutes=10)
+
+        registration, _ = RegistrationCode.objects.update_or_create(
+            email=email,
+            defaults={"expires_at": expires_at}
+        )
+
+        registration.set_code(raw_code)
+        registration.temp_token = None
+        registration.save()
+
+        # Envio do e-mail
+        send_mail(
+            subject="Código para criar sua conta",
+            message=f"Seu código de verificação é: {raw_code}",
+            from_email=None,
+            recipient_list=[email],
+        )
+
+        return registration
+
+
+# ==========================================
+# FLUXO NOVO DE REGISTRO – PASSO 2
+# Validar código e gerar temp_token
+# ==========================================
+class RegistrationVerifyCodeSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    code = serializers.CharField(max_length=6)
+
+    def validate(self, data):
+        email = data["email"].lower()
+        raw_code = data["code"].strip()
+
+        try:
+            registration = RegistrationCode.objects.get(email=email)
+        except RegistrationCode.DoesNotExist:
+            raise serializers.ValidationError(
+                {"email": "Nenhum código foi enviado para este e-mail."}
+            )
+
+        if registration.is_expired():
+            raise serializers.ValidationError({"code": "Código expirado."})
+
+        if not registration.check_code(raw_code):
+            raise serializers.ValidationError({"code": "Código inválido."})
+
+        data["registration_obj"] = registration
+        return data
+
+    def save(self):
+        registration = self.validated_data["registration_obj"]
+        temp_token = uuid.uuid4().hex
+
+        registration.temp_token = temp_token
+        registration.save()
+
+        return temp_token
+
+
+# ==========================================
+# FLUXO NOVO DE REGISTRO – PASSO 3
+# Completar registro (email + temp_token + password)
+# ==========================================
+class RegistrationCompleteSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    temp_token = serializers.CharField()
+    password = serializers.CharField(write_only=True)
 
     def validate_password(self, value):
         mensagem = (
-            "A senha deve conter pelo menos:\n"
+            "A senha deve conter:\n"
             "- 8 caracteres\n"
             "- 1 letra maiúscula\n"
             "- 1 letra minúscula\n"
@@ -60,46 +127,52 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         email = attrs.get("email").lower()
-        attrs["email"] = email
+        temp_token = attrs.get("temp_token")
+
+        try:
+            registration = RegistrationCode.objects.get(email=email, temp_token=temp_token)
+        except RegistrationCode.DoesNotExist:
+            raise serializers.ValidationError(
+                {"temp_token": "Token inválido ou já utilizado."}
+            )
+
+        if registration.is_expired():
+            raise serializers.ValidationError(
+                {"temp_token": "Token expirado, solicite um novo código."}
+            )
 
         if User.objects.filter(email=email).exists():
-            raise serializers.ValidationError({"email": ["E-mail já está cadastrado."]})
+            raise serializers.ValidationError(
+                {"email": "Este e-mail já está cadastrado."}
+            )
 
+        attrs["registration_obj"] = registration
+        attrs["email"] = email
         return attrs
 
     def create(self, validated_data):
-        # 1. Cria o usuário INATIVO
+        registration = validated_data["registration_obj"]
+        email = validated_data["email"]
+        password = validated_data["password"]
+
+        # Usuário só é criado aqui, depois do código validado
         user = User.objects.create_user(
-            email=validated_data["email"],
-            password=validated_data["password"],
+            email=email,
+            password=password,
         )
-        user.is_active = False
+        # Já fica ativo, pois o e-mail foi validado via código
+        user.is_active = True
         user.save()
 
-        # 2. Gerar código
-        raw_code = f"{random.randint(100000, 999999)}"
-
-        verification, _ = EmailVerificationCode.objects.get_or_create(user=user)
-        verification.set_code(raw_code)
-        verification.save()
-
-        print(f"[DEBUG] Código de verificação enviado para {user.email}: {raw_code}")
-
-        # 3. Enviar por email
-        send_mail(
-            subject="Código de verificação da sua conta",
-            message=f"Seu código de verificação é: {raw_code}",
-            from_email=None,
-            recipient_list=[user.email],
-        )
+        # Remove registro temporário
+        registration.delete()
 
         return user
 
 
 # ==========================================
-# ForgotPasswordSerializer – Gera código
+# ForgotPasswordSerializer – gera código de reset
 # ==========================================
-
 class ForgotPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
@@ -132,9 +205,8 @@ class ForgotPasswordSerializer(serializers.Serializer):
 
 
 # ==========================================
-# VerifyCodeSerializer – Valida código e gera temp_token
+# VerifyCodeSerializer – valida código (reset) e gera temp_token
 # ==========================================
-
 class VerifyCodeSerializer(serializers.Serializer):
     email = serializers.EmailField()
     code = serializers.CharField(max_length=6)
@@ -168,9 +240,8 @@ class VerifyCodeSerializer(serializers.Serializer):
 
 
 # ==========================================
-# ResetPasswordSerializer – Usa temp_token para trocar a senha
+# ResetPasswordSerializer – troca senha usando temp_token
 # ==========================================
-
 class ResetPasswordSerializer(serializers.Serializer):
     temp_token = serializers.CharField()
     password = serializers.CharField(write_only=True)
@@ -197,46 +268,5 @@ class ResetPasswordSerializer(serializers.Serializer):
         user.save()
 
         reset.delete()
-
-        return user
-
-
-# ==========================================
-# VerifyEmailSerializer – Confirma código e ativa usuário
-# ==========================================
-
-class VerifyEmailSerializer(serializers.Serializer):
-    email = serializers.EmailField(required=True)
-    code = serializers.CharField(required=True)
-
-    def validate(self, attrs):
-        email = attrs.get("email").lower()
-        raw_code = attrs.get("code").strip()
-
-        try:
-            user = User.objects.get(email=email)
-        except User.DoesNotExist:
-            raise serializers.ValidationError({"email": "Usuário não encontrado."})
-
-        try:
-            verification = EmailVerificationCode.objects.get(user=user)
-        except EmailVerificationCode.DoesNotExist:
-            raise serializers.ValidationError({"code": "Nenhum código foi gerado para este usuário."})
-
-        if not verification.check_code(raw_code):
-            raise serializers.ValidationError({"code": "Código inválido."})
-
-        attrs["user"] = user
-        attrs["verification"] = verification
-        return attrs
-
-    def create(self, validated_data):
-        user = validated_data["user"]
-        verification = validated_data["verification"]
-
-        user.is_active = True
-        user.save()
-
-        verification.delete()
 
         return user
