@@ -12,7 +12,9 @@ from .models import (
     PasswordResetCode,
     CustomUser,
     RegistrationCode,
+    UserProfile,
 )
+
 
 User = get_user_model()
 
@@ -155,16 +157,32 @@ class RegistrationCompleteSerializer(serializers.Serializer):
         email = validated_data["email"]
         password = validated_data["password"]
 
-        # Usuário só é criado aqui, depois do código validado
+        # 1. Criação do Usuário (CustomUser)
         user = User.objects.create_user(
             email=email,
             password=password,
         )
-        # Já fica ativo, pois o e-mail foi validado via código
         user.is_active = True
         user.save()
 
-        # Remove registro temporário
+        # 2. Criação do UserProfile e definição do username
+
+        # Define o username sugerido
+        suggested_username = email.split("@")[0]
+
+        # Cria ou obtém o perfil, e define o username padrão
+        # (Se o seu UserProfile tiver um get_or_create_profile, use-o)
+
+        # Se for um relacionamento OneToOne simples:
+        try:
+            profile = user.profile
+        except UserProfile.DoesNotExist:
+            profile = UserProfile.objects.create(user=user)
+
+        profile.username = suggested_username
+        profile.save()
+
+        # 3. Remove registro temporário
         registration.delete()
 
         return user
