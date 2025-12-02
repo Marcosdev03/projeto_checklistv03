@@ -161,13 +161,14 @@ class RegistrationCompleteSerializer(serializers.Serializer):
         # username sugerido
         suggested_username = email.split("@")[0]
 
-        # garante profile
+        # garante profile — MAS NÃO DEFINE USERNAME
         try:
             profile = user.profile
         except UserProfile.DoesNotExist:
             profile = UserProfile.objects.create(user=user)
 
-        profile.username = suggested_username
+        # deixa username como NULL
+        profile.username = None
         profile.save()
 
         registration.delete()
