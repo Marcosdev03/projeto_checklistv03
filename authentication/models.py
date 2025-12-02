@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 from django.contrib.auth.hashers import make_password, check_password
 from django.contrib.auth.models import (
     AbstractBaseUser, BaseUserManager, PermissionsMixin
@@ -90,24 +91,10 @@ class PasswordResetCode(models.Model):
 # ==========================================
 class RegistrationCode(models.Model):
     """
-    Fluxo de registro:
-
-      PASSO 1: /register/send-code/
-        - recebe email
-        - gera código
-        - salva como hash
-        - envia e-mail
-        - NÃO cria usuário ainda
-
-      PASSO 2: /register/verify-code/
-        - recebe email + código
-        - valida
-        - gera temp_token
-
-      PASSO 3: /register/complete/
-        - recebe email + temp_token + senha
-        - cria usuário ativo
-        - apaga este registro
+    Fluxo de registro em 3 passos:
+      1) send-code
+      2) verify-code
+      3) complete
     """
     email = models.EmailField(max_length=254, unique=True)
     code = models.CharField(max_length=128)  # código salvo como hash
@@ -127,3 +114,32 @@ class RegistrationCode(models.Model):
 
     def __str__(self):
         return f"Registro pendente para {self.email}"
+
+
+# ============================================================
+# UserProfile – guarda o username do usuário
+# ============================================================
+class UserProfile(models.Model):
+    # Relacionamento 1-1 com o usuário principal
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="profile"  # user.profile
+    )
+
+    username = models.CharField(
+        max_length=30,
+        null=True,
+        blank=True
+    )
+
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Profile({self.user.email})"
+
+    @staticmethod
+    def get_or_create_profile(user):
+        profile, created = UserProfile.objects.get_or_create(user=user)
+        return profile

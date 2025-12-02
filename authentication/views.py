@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework import status, generics
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -13,13 +13,14 @@ from .serializers import (
     ForgotPasswordSerializer,
     VerifyCodeSerializer,
     ResetPasswordSerializer,
+    UsernameSerializer,
 )
 from .custom_jwt import CustomTokenObtainPairSerializer
+from .models import UserProfile
 
 
 # ==========================================
-# FLUXO NOVO – PASSO 1
-# Enviar código de registro
+# REGISTRO – PASSO 1
 # ==========================================
 class RegistrationSendCodeView(APIView):
     permission_classes = [AllowAny]
@@ -36,8 +37,7 @@ class RegistrationSendCodeView(APIView):
 
 
 # ==========================================
-# FLUXO NOVO – PASSO 2
-# Validar código e gerar temp_token
+# REGISTRO – PASSO 2
 # ==========================================
 class RegistrationVerifyCodeView(APIView):
     permission_classes = [AllowAny]
@@ -54,8 +54,7 @@ class RegistrationVerifyCodeView(APIView):
 
 
 # ==========================================
-# FLUXO NOVO – PASSO 3
-# Completar registro, criar usuário e já devolver JWT
+# REGISTRO – PASSO 3 + retorno de JWT
 # ==========================================
 class RegistrationCompleteView(generics.CreateAPIView):
     serializer_class = RegistrationCompleteSerializer
@@ -65,12 +64,10 @@ class RegistrationCompleteView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        user = serializer.save()  # cria usuário ativo
+        user = serializer.save()
 
-        # Gera tokens JWT (access + refresh)
         refresh = RefreshToken.for_user(user)
 
-        # Extras parecidos com CustomTokenObtainPairSerializer
         profile = getattr(user, "profile", None)
         has_username = bool(profile and getattr(profile, "username", None))
         current_username = getattr(profile, "username", None) if profile else None
@@ -91,7 +88,7 @@ class RegistrationCompleteView(generics.CreateAPIView):
 
 
 # ==========================================
-# Esqueci minha senha – gera código
+# ESQUECI MINHA SENHA
 # ==========================================
 class ForgotPasswordView(APIView):
     permission_classes = [AllowAny]
@@ -110,7 +107,7 @@ class ForgotPasswordView(APIView):
 
 
 # ==========================================
-# Reset de senha – valida código e gera temp_token
+# VALIDAR CÓDIGO DE RESET
 # ==========================================
 class VerifyCodeView(APIView):
     permission_classes = [AllowAny]
@@ -129,7 +126,7 @@ class VerifyCodeView(APIView):
 
 
 # ==========================================
-# Reset de senha – troca usando temp_token
+# RESETAR SENHA COM TEMP_TOKEN
 # ==========================================
 class ResetPasswordView(APIView):
     permission_classes = [AllowAny]
@@ -148,7 +145,37 @@ class ResetPasswordView(APIView):
 
 
 # ============================================================
-# LOGIN – CustomTokenObtainPairView com seu serializer
+# LOGIN – usa seu CustomTokenObtainPairSerializer
 # ============================================================
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+
+
+# ============================================================
+# USERNAME – /api/authentication/username/me/
+# ============================================================
+class UsernameMeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        profile = UserProfile.get_or_create_profile(request.user)
+
+        return Response({
+            "username": profile.username,
+            "email": request.user.email,
+        }, status=status.HTTP_200_OK)
+
+    def patch(self, request):
+        serializer = UsernameSerializer(
+            data=request.data,
+            context={"request": request}
+        )
+
+        if serializer.is_valid():
+            profile = serializer.save()
+            return Response({
+                "message": "Username atualizado com sucesso.",
+                "username": profile.username
+            }, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

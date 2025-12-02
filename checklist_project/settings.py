@@ -35,7 +35,6 @@ INSTALLED_APPS = [
 
     # Apps próprios
     'authentication',
-    'register_username',
     'tasks'
 ]
 

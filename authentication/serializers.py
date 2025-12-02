@@ -15,13 +15,11 @@ from .models import (
     UserProfile,
 )
 
-
 User = get_user_model()
 
 
 # ==========================================
-# FLUXO NOVO DE REGISTRO – PASSO 1
-# Enviar código para o e-mail (sem criar usuário ainda)
+# REGISTRO – PASSO 1 (send-code)
 # ==========================================
 class RegistrationSendCodeSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -29,7 +27,6 @@ class RegistrationSendCodeSerializer(serializers.Serializer):
     def validate_email(self, value):
         email = value.lower()
 
-        # Se já existe usuário, não permite novo registro
         if User.objects.filter(email=email).exists():
             raise serializers.ValidationError("Este e-mail já está cadastrado.")
 
@@ -50,7 +47,6 @@ class RegistrationSendCodeSerializer(serializers.Serializer):
         registration.temp_token = None
         registration.save()
 
-        # Envio do e-mail
         send_mail(
             subject="Código para criar sua conta",
             message=f"Seu código de verificação é: {raw_code}",
@@ -62,8 +58,7 @@ class RegistrationSendCodeSerializer(serializers.Serializer):
 
 
 # ==========================================
-# FLUXO NOVO DE REGISTRO – PASSO 2
-# Validar código e gerar temp_token
+# REGISTRO – PASSO 2 (verify-code)
 # ==========================================
 class RegistrationVerifyCodeSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -100,8 +95,7 @@ class RegistrationVerifyCodeSerializer(serializers.Serializer):
 
 
 # ==========================================
-# FLUXO NOVO DE REGISTRO – PASSO 3
-# Completar registro (email + temp_token + password)
+# REGISTRO – PASSO 3 (complete)
 # ==========================================
 class RegistrationCompleteSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -157,7 +151,6 @@ class RegistrationCompleteSerializer(serializers.Serializer):
         email = validated_data["email"]
         password = validated_data["password"]
 
-        # 1. Criação do Usuário (CustomUser)
         user = User.objects.create_user(
             email=email,
             password=password,
@@ -165,15 +158,10 @@ class RegistrationCompleteSerializer(serializers.Serializer):
         user.is_active = True
         user.save()
 
-        # 2. Criação do UserProfile e definição do username
-
-        # Define o username sugerido
+        # username sugerido
         suggested_username = email.split("@")[0]
 
-        # Cria ou obtém o perfil, e define o username padrão
-        # (Se o seu UserProfile tiver um get_or_create_profile, use-o)
-
-        # Se for um relacionamento OneToOne simples:
+        # garante profile
         try:
             profile = user.profile
         except UserProfile.DoesNotExist:
@@ -182,14 +170,13 @@ class RegistrationCompleteSerializer(serializers.Serializer):
         profile.username = suggested_username
         profile.save()
 
-        # 3. Remove registro temporário
         registration.delete()
 
         return user
 
 
 # ==========================================
-# ForgotPasswordSerializer – gera código de reset
+# ESQUECI MINHA SENHA – gera código
 # ==========================================
 class ForgotPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -223,7 +210,7 @@ class ForgotPasswordSerializer(serializers.Serializer):
 
 
 # ==========================================
-# VerifyCodeSerializer – valida código (reset) e gera temp_token
+# RESET – valida código e gera temp_token
 # ==========================================
 class VerifyCodeSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -258,7 +245,7 @@ class VerifyCodeSerializer(serializers.Serializer):
 
 
 # ==========================================
-# ResetPasswordSerializer – troca senha usando temp_token
+# RESET – troca senha com temp_token
 # ==========================================
 class ResetPasswordSerializer(serializers.Serializer):
     temp_token = serializers.CharField()
@@ -288,3 +275,48 @@ class ResetPasswordSerializer(serializers.Serializer):
         reset.delete()
 
         return user
+
+
+# ==========================================
+# USERNAME – mesma lógica da rota antiga
+# ==========================================
+class UsernameSerializer(serializers.Serializer):
+    username = serializers.CharField(
+        allow_blank=True,
+        allow_null=True,
+        required=False
+    )
+
+    def validate_username(self, value):
+        if not value:
+            return value
+
+        value = value.strip()
+
+        if len(value) < 3 or len(value) > 30:
+            raise serializers.ValidationError(
+                "O username deve ter entre 3 e 30 caracteres."
+            )
+
+        if any(ch in value for ch in "<>/\\"):
+            raise serializers.ValidationError(
+                "O username contém caracteres inválidos."
+            )
+
+        return value
+
+    def save(self, **kwargs):
+        user = self.context["request"].user
+        email = user.email
+
+        profile = UserProfile.get_or_create_profile(user)
+
+        username = self.validated_data.get("username")
+
+        if not username:
+            username = email.split("@")[0]
+
+        profile.username = username
+        profile.save()
+
+        return profile
