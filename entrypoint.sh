@@ -19,6 +19,7 @@ done
 echo "✔ Banco disponível!"
 
 echo "📌 Rodando migrations..."
+python manage.py makemigrations
 python manage.py migrate --noinput
 
 echo "🚀 Iniciando servidor Django..."
