@@ -1,0 +1,18 @@
+{
+  "users": [
+    {
+      "email": "batata@batata.com",
+      "password": "$2a$10$NMy29StnXjge5Mg.2J28luY1v2xEJEE21/vQRq2LfQj0rIzohi/R.",
+      "code": "123123",
+      "username": "Batata",
+      "id": 1
+    }
+  ],
+  "emails": [
+    {
+      "email": "batata@batata.com",
+      "id": 1
+    }
+  ],
+  "tasks": []
+}

@@ -1,0 +1,85 @@
+@font-face {
+    font-family: "Delius";
+    src: url('./assets/fonts/Delius-Regular.ttf') format("truetype");
+}
+
+* {
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+    -webkit-user-drag: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+:root {
+    --color-bg: #202020;
+    --color-bg-alt: #e0e0e0;
+    --color-bg-alt-alt: #d8d8d8;
+    --color-bg-alt-alt-alt: #cecece;
+
+    --color-text: #ffffff;
+    --color-text-muted: #cfcfcf;
+    --color-text-invert: #0f0f0f;
+
+    --color-border: #ffffff;
+    --color-border-alt: #c7c7c7;
+    --color-border-alt-alt: #C0C0C0;
+
+    --color-accent: #552d74;
+    --color-accent-hover: #421466;
+
+    --color-success: #18914a;
+    --color-warning: #f1c40f;
+    --color-error: #a72719;
+
+    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.25);
+    --shadow-md: 0 4px 10px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-accent) var(--color-bg);
+}
+
+*::-webkit-scrollbar {
+    width: var(--color-bg);
+    width: 4px;
+}
+
+*::-webkit-scrollbar-track {
+    background: var(--color-bg);
+}
+
+*::-webkit-scrollbar-thumb {
+    background: var(--color-accent);
+    border-radius: var(--color-bg-alt);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    background: var(--color-accent-hover);
+}
+
+*::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+#root {
+    width: 100dvw;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: "Delius", cursive;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    overflow-x: hidden;
+}
+
+body {
+    background: var(--color-bg);
+}
