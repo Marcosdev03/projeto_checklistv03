@@ -2,11 +2,10 @@ from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-
+from django.db.models.functions import ExtractWeekDay
 from django.core.cache import cache
 from django.utils import timezone
 from datetime import timedelta
-
 from .models import Task
 from .serializers import TaskSerializer
 
@@ -54,7 +53,7 @@ class DashboardView(APIView):
         user = request.user
         cache_key = f"dashboard_user_{user.id}"
 
-        # 1 — tenta pegar do cache
+        # 1 — tenta cache
         data = cache.get(cache_key)
         if data:
             return Response(data)
@@ -69,9 +68,10 @@ class DashboardView(APIView):
         hoje = timezone.now().date()
         semana = hoje - timedelta(days=6)
 
-        tasks_da_semana = (
+        tasks_da_semana = list(
             tasks.filter(created_at__date__gte=semana)
-            .values_list("created_at__week_day", flat=True)
+            .annotate(wday=ExtractWeekDay("created_at"))
+            .values_list("wday", flat=True)
         )
 
         atividade = {
@@ -92,7 +92,5 @@ class DashboardView(APIView):
             "atividade_semana": atividade,
         }
 
-        # 3 — salva no cache por 30s
         cache.set(cache_key, data, timeout=30)
-
         return Response(data)
