@@ -30,6 +30,7 @@ export default ({ error, handleSwitchTypeCard, redirectCard, setError, warn, set
     const [temp_token, setTempCode] = useState("");
 
     const [pass, setPass] = useState(false);
+    const [emailReady, setEmailReady] = useState(false);
 
     const handleSend = async () => {
         try {
@@ -38,9 +39,7 @@ export default ({ error, handleSwitchTypeCard, redirectCard, setError, warn, set
             console.log(res)
             if (res.status >= 200 && res.status <= 299) {
                 setWarn("Um código foi enviado para o seu email");
-                setTimeout(() => {
-                    setShowCodeInput(true);
-                }, 3000);
+                setShowCodeInput(true);
             }
         } catch {
             setError("Não foi possivel enviar o email");
@@ -92,11 +91,33 @@ export default ({ error, handleSwitchTypeCard, redirectCard, setError, warn, set
         const isValidEmail = email.length > 8 && email.includes("@");
         if (isValidEmail) {
             const debounceTimeout = setTimeout(() => {
-                handleSend();
-            }, 1000);
-            return () => clearTimeout(debounceTimeout);
+                setEmailReady(true);
+            }, 100);
+            return () => {
+                clearTimeout(debounceTimeout);
+                setEmailReady(false);
+            };
+        } else {
+            setEmailReady(false);
         }
     }, [email]);
+
+    const getButtonLabel = () => {
+        if (!emailReady && !showCodeInput) return "Enviar Código";
+        if (emailReady && !showCodeInput) return "Enviar Código";
+        return "Criar conta";
+    };
+
+    const getButtonAction = () => {
+        if (emailReady && !showCodeInput) return handleSend;
+        return handleVerify;
+    };
+
+    const getButtonDisabled = () => {
+        if (!emailReady && !showCodeInput) return true;
+        if (emailReady && !showCodeInput) return isLoading;
+        return isLoading || ButtonDisabled;
+    };
 
     return (
         <CardContainer>
@@ -113,7 +134,11 @@ export default ({ error, handleSwitchTypeCard, redirectCard, setError, warn, set
                     <RowGroup>
                         <TextAchor onClick={handleSwitchTypeCard}>Voltar ao login</TextAchor>
                     </RowGroup>
-                    <Button label="Criar conta" action={handleVerify} disabled={(isLoading) || (ButtonDisabled)} />
+                    <Button
+                        label={getButtonLabel()}
+                        action={getButtonAction()}
+                        disabled={getButtonDisabled()}
+                    />
                 </ButtonGroup>
             </>}
             {pass && <>
