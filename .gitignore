@@ -28,3 +28,4 @@ dist-ssr
 
 #DJANGO
 *.sqlite3
+*venv*
