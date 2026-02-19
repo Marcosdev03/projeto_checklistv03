@@ -26,6 +26,7 @@ export default ({ cardType, error, warn, redirectCard, setWarn, setError }: Reco
     const [isLoading, setIsLoading] = useState(false);
     const [recoverButtonDisabled, setRecoverButtonDisabled] = useState(true);
     const [showCodeInput, setShowCodeInput] = useState(false);
+    const [tempToken, setTempToken] = useState("");
     // #endregion
 
     // #region Funções
@@ -62,6 +63,7 @@ export default ({ cardType, error, warn, redirectCard, setWarn, setError }: Reco
             setIsLoading(true);
             const res = await API.POST(ENDPOINT.AUTH_RECOVER_COMFIRM, { email, code });
             if (res.status === 200) {
+                setTempToken(res.data.temp_token);
                 redirectCard("switch_password");
             } else {
                 setError("Código inválido.");
@@ -84,7 +86,11 @@ export default ({ cardType, error, warn, redirectCard, setWarn, setError }: Reco
         }
         try {
             setIsLoading(true);
-            const res = await API.PUT(ENDPOINT.AUTH_RECOVER_COMFIRM, { email, code, password });
+            const res = await API.POST(ENDPOINT.AUTH_SWITCH_PASSWORD, {
+                temp_token: tempToken,
+                password,
+                confirm_password: passwordConfirm,
+            });
             if (res.status === 200) {
                 redirectCard("login");
             } else {
