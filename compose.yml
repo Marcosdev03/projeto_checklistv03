@@ -1,24 +1,35 @@
+version: '3.8'
+
 services:
   backend:
-    container_name: backend
-    ports:
-      - "8000:8000"
+    container_name: checklist_backend
     env_file:
       - .env
     build:
       context: ./backend
     entrypoint: /app/entrypoint.sh
-    command: python manage.py runserver 0.0.0.0:8000
+    command: gunicorn --config /app/gunicorn.conf.py checklist_project.wsgi:application
     restart: unless-stopped
+    volumes:
+      - ./backend:/app
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   frontend:
-    container_name: frontend
+    container_name: checklist_frontend
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    depends_on:
-      - backend
-    ports:
-      - "80:80"
     restart: unless-stopped
+    ports:
+      - "8003:8003"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
+  
