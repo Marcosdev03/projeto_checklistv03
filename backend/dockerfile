@@ -34,5 +34,7 @@ RUN pip install --upgrade pip && \
 # Copia o restante do código do projeto para o container
 COPY . /app/
 
+RUN chmod +x /app/entrypoint.sh
+
 # 7. Comando de inicialização (Exemplo para Django)
 # COMMAND [ "python", "manage.py", "runserver", "0.0.0.0:8000" ]
