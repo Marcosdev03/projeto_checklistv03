@@ -33,5 +33,9 @@ jobs:
             cd /root/Home/ecosistema
             docker compose up -d --build checklists-backend checklists-app
 
+            for i in 1 2 3 4 5 6; do
+              curl -fsS https://checklists.tech > /dev/null && break
+              sleep 5
+            done
             curl -fsS https://checklists.tech > /dev/null
             echo "Deploy do checklist concluido com sucesso."
