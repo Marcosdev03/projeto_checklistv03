@@ -1,9 +1,11 @@
 from rest_framework import serializers
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.mail import send_mail
 from django.utils import timezone
 from datetime import timedelta
+import logging
 import re
 import uuid
 import random
@@ -16,6 +18,38 @@ from .models import (
 )
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
+
+
+def _extract_email_error_message(exc: Exception) -> str:
+    detail = getattr(exc, "args", None)
+    if detail and isinstance(detail, tuple) and detail[0]:
+        return str(detail[0])
+    return "Nao foi possivel enviar o e-mail agora. Tente novamente mais tarde."
+
+
+def _send_code_email(subject: str, message: str, recipient: str) -> None:
+    backend = getattr(settings, "EMAIL_BACKEND", "")
+    is_console_backend = backend.endswith("console.EmailBackend")
+
+    # SMTP backend requires host and user configured. If missing, this route should
+    # fail as a validation error instead of exploding with HTTP 500.
+    if not is_console_backend and (not getattr(settings, "EMAIL_HOST", "") or not getattr(settings, "EMAIL_HOST_USER", "")):
+        raise serializers.ValidationError(
+            {"email": "Servico de e-mail indisponivel. Configure SMTP para continuar."}
+        )
+
+    try:
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=None,
+            recipient_list=[recipient],
+        )
+        return
+    except Exception as exc:
+        logger.exception("Falha ao enviar e-mail para %s", recipient)
+        raise serializers.ValidationError({"email": _extract_email_error_message(exc)})
 
 
 # ==========================================
@@ -47,11 +81,10 @@ class RegistrationSendCodeSerializer(serializers.Serializer):
         registration.temp_token = None
         registration.save()
 
-        send_mail(
-            subject="Código para criar sua conta",
-            message=f"Seu código de verificação é: {raw_code}",
-            from_email=None,
-            recipient_list=[email],
+        _send_code_email(
+            subject="Codigo para criar sua conta",
+            message=f"Seu codigo de verificacao e: {raw_code}",
+            recipient=email,
         )
 
         return registration
@@ -200,11 +233,10 @@ class ForgotPasswordSerializer(serializers.Serializer):
         reset.set_code(raw_code)
         reset.save()
 
-        send_mail(
-            subject="Seu código para redefinir senha",
-            message=f"Seu código é: {raw_code}",
-            from_email=None,
-            recipient_list=[email],
+        _send_code_email(
+            subject="Seu codigo para redefinir senha",
+            message=f"Seu codigo e: {raw_code}",
+            recipient=email,
         )
 
         return raw_code

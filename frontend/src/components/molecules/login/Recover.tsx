@@ -18,6 +18,17 @@ type Recover = {
 
 export default ({ cardType, error, warn, redirectCard, setWarn, setError }: Recover) => {
 
+    const getApiErrorMessage = (err: unknown, fallback: string) => {
+        const data = (err as { response?: { data?: unknown } })?.response?.data;
+        if (typeof data === "string") return data;
+        if (data && typeof data === "object") {
+            const firstValue = Object.values(data)[0];
+            if (Array.isArray(firstValue) && firstValue.length > 0) return String(firstValue[0]);
+            if (typeof firstValue === "string") return firstValue;
+        }
+        return fallback;
+    };
+
     // #region States
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -39,7 +50,7 @@ export default ({ cardType, error, warn, redirectCard, setWarn, setError }: Reco
             setIsLoading(true);
             const res = await API.POST(ENDPOINT.AUTH_RECOVER, { email });
             if (res.status >= 200 && res.status <= 299) {
-                setWarn("Um código de recuperação foi enviado para o seu email.");
+                setWarn("Um codigo de recuperacao foi enviado para o seu email.");
                 const codeInputInterval = setTimeout(() => {
                     setShowCodeInput(true);
                 }, 6000);
@@ -47,8 +58,8 @@ export default ({ cardType, error, warn, redirectCard, setWarn, setError }: Reco
             } else {
                 setError("Email não cadastrado.");
             }
-        } catch {
-            setError("Email não cadastrado.");
+        } catch (err) {
+            setError(getApiErrorMessage(err, "Email nao cadastrado."));
         } finally {
             setIsLoading(false);
         }
@@ -68,8 +79,8 @@ export default ({ cardType, error, warn, redirectCard, setWarn, setError }: Reco
             } else {
                 setError("Código inválido.");
             }
-        } catch {
-            setError("Código inválido.");
+        } catch (err) {
+            setError(getApiErrorMessage(err, "Codigo invalido."));
         } finally {
             setIsLoading(false);
         }
@@ -96,8 +107,8 @@ export default ({ cardType, error, warn, redirectCard, setWarn, setError }: Reco
             } else {
                 setError("Erro ao alterar a senha.");
             }
-        } catch {
-            setError("Erro ao alterar a senha.");
+        } catch (err) {
+            setError(getApiErrorMessage(err, "Erro ao alterar a senha."));
         } finally {
             setIsLoading(false);
         }

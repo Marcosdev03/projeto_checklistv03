@@ -30,7 +30,7 @@ class RegistrationSendCodeView(APIView):
         if serializer.is_valid():
             serializer.save()
             return Response(
-                {"message": "Código enviado para o e-mail informado."},
+                {"message": "Codigo enviado para o e-mail informado."},
                 status=status.HTTP_200_OK
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -99,7 +99,7 @@ class ForgotPasswordView(APIView):
         if serializer.is_valid():
             serializer.save()
             return Response(
-                {"message": "Código enviado para o e-mail informado."},
+                {"message": "Codigo enviado para o e-mail informado."},
                 status=status.HTTP_200_OK,
             )
 

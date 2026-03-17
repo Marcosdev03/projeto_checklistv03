@@ -18,6 +18,17 @@ type Register = {
 
 export default ({ error, handleSwitchTypeCard, redirectCard, setError, warn, setWarn }: Register) => {
 
+    const getApiErrorMessage = (err: unknown, fallback: string) => {
+        const data = (err as { response?: { data?: unknown } })?.response?.data;
+        if (typeof data === "string") return data;
+        if (data && typeof data === "object") {
+            const firstValue = Object.values(data)[0];
+            if (Array.isArray(firstValue) && firstValue.length > 0) return String(firstValue[0]);
+            if (typeof firstValue === "string") return firstValue;
+        }
+        return fallback;
+    };
+
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [passwordConfirm, setPasswordConfirm] = useState("");
@@ -38,11 +49,11 @@ export default ({ error, handleSwitchTypeCard, redirectCard, setError, warn, set
             const res = await API.POST(ENDPOINT.AUTH_REGISTER_CODE_SEND, { email });
             console.log(res)
             if (res.status >= 200 && res.status <= 299) {
-                setWarn("Um código foi enviado para o seu email");
+                setWarn("Um codigo foi enviado para o seu email.");
                 setShowCodeInput(true);
             }
-        } catch {
-            setError("Não foi possivel enviar o email");
+        } catch (err) {
+            setError(getApiErrorMessage(err, "Nao foi possivel enviar o email."));
         } finally {
             setIsLoading(false);
         }
@@ -56,8 +67,8 @@ export default ({ error, handleSwitchTypeCard, redirectCard, setError, warn, set
                 setTempCode(res.data.temp_token);
                 setPass(true);
             }
-        } catch {
-            setError("Código inválido.");
+        } catch (err) {
+            setError(getApiErrorMessage(err, "Codigo invalido."));
         } finally {
             setIsLoading(false);
         }
@@ -75,8 +86,8 @@ export default ({ error, handleSwitchTypeCard, redirectCard, setError, warn, set
                 setWarn("Conta criada com sucesso!")
                 redirectCard("login")
             }
-        } catch {
-            setError("Senha inválida");
+        } catch (err) {
+            setError(getApiErrorMessage(err, "Senha invalida."));
         } finally {
             setIsLoading(false);
         }
