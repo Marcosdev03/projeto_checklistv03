@@ -29,4 +29,10 @@ dist-ssr
 #DJANGO
 *.sqlite3
 .venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local backups
+_backup/
 venv/
