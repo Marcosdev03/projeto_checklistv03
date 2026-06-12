@@ -27,16 +27,50 @@ jobs:
           tenant-id: ${{ secrets.CHECKLISTSPROD_AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.CHECKLISTSPROD_AZURE_SUBSCRIPTION_ID }}
 
-      - name: Build and deploy
-        uses: azure/container-apps-deploy-action@v2
-        with:
-          appSourcePath: ${{ github.workspace }}
-          dockerfilePath: Dockerfile
-          registryUrl: acrlojatechprod.azurecr.io
-          registryUsername: ${{ secrets.CHECKLISTSPROD_REGISTRY_USERNAME }}
-          registryPassword: ${{ secrets.CHECKLISTSPROD_REGISTRY_PASSWORD }}
-          imageToBuild: acrlojatechprod.azurecr.io/checklists-prod:${{ github.sha }}
-          containerAppName: checklists-prod
-          resourceGroup: rg-checklists-prod
-          targetPort: 8000
-          ingress: external
+      - name: Resolve Azure Container Registry
+        id: registry
+        shell: bash
+        run: |
+          login_server="$(az acr show \
+            --name acrlojatechprod \
+            --resource-group rg-lojatech-prod \
+            --query loginServer \
+            --output tsv)"
+          test -n "$login_server"
+          echo "login-server=$login_server" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push image
+        env:
+          REGISTRY_SERVER: ${{ steps.registry.outputs.login-server }}
+          REGISTRY_USERNAME: ${{ secrets.CHECKLISTSPROD_REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.CHECKLISTSPROD_REGISTRY_PASSWORD }}
+          IMAGE_TAG: ${{ github.sha }}
+        shell: bash
+        run: |
+          image="$REGISTRY_SERVER/checklists-prod:$IMAGE_TAG"
+          echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY_SERVER" \
+            --username "$REGISTRY_USERNAME" \
+            --password-stdin
+          docker build --file Dockerfile --tag "$image" .
+          docker push "$image"
+
+      - name: Deploy image to Container App
+        env:
+          REGISTRY_SERVER: ${{ steps.registry.outputs.login-server }}
+          REGISTRY_USERNAME: ${{ secrets.CHECKLISTSPROD_REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.CHECKLISTSPROD_REGISTRY_PASSWORD }}
+          IMAGE_TAG: ${{ github.sha }}
+        shell: bash
+        run: |
+          image="$REGISTRY_SERVER/checklists-prod:$IMAGE_TAG"
+          az extension add --name containerapp --upgrade --allow-preview true
+          az containerapp registry set \
+            --name checklists-prod \
+            --resource-group rg-checklists-prod \
+            --server "$REGISTRY_SERVER" \
+            --username "$REGISTRY_USERNAME" \
+            --password "$REGISTRY_PASSWORD"
+          az containerapp update \
+            --name checklists-prod \
+            --resource-group rg-checklists-prod \
+            --image "$image"
