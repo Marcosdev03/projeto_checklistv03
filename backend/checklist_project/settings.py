@@ -1,6 +1,7 @@
 from pathlib import Path
 from decouple import config, Csv
 from datetime import timedelta
+import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -27,7 +28,7 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    # 'django.contrib.staticfiles',
+    'django.contrib.staticfiles',
 
     # Terceiros
     'rest_framework',
@@ -40,6 +41,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
 
     # CORS
@@ -57,7 +59,7 @@ ROOT_URLCONF = 'checklist_project.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR.parent / 'frontend_dist'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -76,8 +78,14 @@ WSGI_APPLICATION = 'checklist_project.wsgi.application'
 # 🗄 BANCO DE DADOS
 # =======================================================
 
+DATABASE_URL = config('DATABASE_URL', default='')
+
 DATABASES = {
-    'default': {
+    'default': dj_database_url.parse(
+        DATABASE_URL,
+        conn_max_age=600,
+        ssl_require=config('DATABASE_SSL_REQUIRE', default=True, cast=bool),
+    ) if DATABASE_URL else {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / config('DB_NAME', default='db.sqlite3'),
     }
@@ -106,11 +114,22 @@ USE_TZ = True
 # =======================================================
 # STATIC FILES
 # =======================================================
-# STATIC_URL = '/static/'
+STATIC_URL = '/static/'
 
 # Diretório onde os arquivos estáticos serão COLETADOS
 # /app/staticfiles dentro do container
-# STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage',
+    },
+}
+
+WHITENOISE_ROOT = BASE_DIR.parent / 'frontend_dist'
 
 # NOVO: Diretórios ADICIONAIS onde o Django deve PROCURAR arquivos estáticos.
 # Esta linha é crucial para garantir que os arquivos do Admin e
@@ -162,7 +181,12 @@ SIMPLE_JWT = {
 # CORS
 # =======================================================
 
-CORS_ALLOW_ALL_ORIGINS = True  # dev
+CORS_ALLOW_ALL_ORIGINS = DEBUG
+CORS_ALLOWED_ORIGINS = config(
+    'CORS_ALLOWED_ORIGINS',
+    default='https://checklists.tech,https://www.checklists.tech',
+    cast=Csv(),
+)
 
 # =======================================================
 # TRUSTED ORIGINS (OBRIGATÓRIO COM NGINX)
@@ -177,3 +201,17 @@ CSRF_TRUSTED_ORIGINS = [
     "http://check.zelchi.com",
     # "https://seu-dominio.com",  # produção
 ]
+
+CSRF_TRUSTED_ORIGINS = config(
+    "CSRF_TRUSTED_ORIGINS",
+    default=(
+        "http://localhost:8000,http://127.0.0.1:8000,"
+        "http://localhost:5173,http://127.0.0.1:5173,"
+        "https://checklists.tech,https://www.checklists.tech"
+    ),
+    cast=Csv(),
+)
+
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
