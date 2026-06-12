@@ -116,8 +116,11 @@ jobs:
           echo "pgAdmin restricted to $ALLOWED_IP/32"
 
       - name: Verify restriction and revision
+        if: always()
         shell: bash
         run: |
+          set +e
+
           az containerapp ingress access-restriction list \
             --name pgadmin-lojatech \
             --resource-group rg-checklists-prod \
@@ -127,3 +130,33 @@ jobs:
             --name pgadmin-lojatech \
             --resource-group rg-checklists-prod \
             --output table
+
+          latest_revision="$(az containerapp revision list \
+            --name pgadmin-lojatech \
+            --resource-group rg-checklists-prod \
+            --query "sort_by(@, &properties.createdTime)[-1].name" \
+            --output tsv)"
+
+          state="$(az containerapp revision show \
+            --name pgadmin-lojatech \
+            --resource-group rg-checklists-prod \
+            --revision "$latest_revision" \
+            --query "{name:name,health:properties.healthState,running:properties.runningState,provisioning:properties.provisioningState,error:properties.provisioningError,replicas:properties.replicas}" \
+            --output json 2>&1)"
+
+          logs="$(timeout 30s az containerapp logs show \
+            --name pgadmin-lojatech \
+            --resource-group rg-checklists-prod \
+            --revision "$latest_revision" \
+            --type console \
+            --tail 50 2>&1)"
+
+          state="${state//'%'/'%25'}"
+          state="${state//$'\r'/'%0D'}"
+          state="${state//$'\n'/'%0A'}"
+          logs="${logs//'%'/'%25'}"
+          logs="${logs//$'\r'/'%0D'}"
+          logs="${logs//$'\n'/'%0A'}"
+
+          echo "::notice title=pgAdmin revision::$state"
+          echo "::warning title=pgAdmin console::$logs"
