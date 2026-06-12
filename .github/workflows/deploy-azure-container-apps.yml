@@ -1,6 +1,9 @@
 name: Deploy to Azure Container Apps
 
 on:
+  push:
+    branches:
+      - producao
   workflow_dispatch:
 
 permissions:
@@ -62,3 +65,41 @@ jobs:
             --name checklists-prod \
             --resource-group rg-checklists-prod \
             --image "$image"
+
+      - name: Verify application health
+        shell: bash
+        run: |
+          app_url="https://$(az containerapp show \
+            --name checklists-prod \
+            --resource-group rg-checklists-prod \
+            --query properties.configuration.ingress.fqdn \
+            --output tsv)"
+
+          for attempt in $(seq 1 36); do
+            if curl --fail --silent --show-error \
+              --connect-timeout 10 \
+              --max-time 20 \
+              "$app_url/health/" | grep --quiet '"healthy"'; then
+              echo "Checklist saudável em $app_url"
+              exit 0
+            fi
+
+            echo "Aguardando o Checklist iniciar ($attempt/36)..."
+            sleep 10
+          done
+
+          az containerapp revision list \
+            --name checklists-prod \
+            --resource-group rg-checklists-prod \
+            --output table
+          az containerapp logs show \
+            --name checklists-prod \
+            --resource-group rg-checklists-prod \
+            --type system \
+            --tail 100 || true
+          az containerapp logs show \
+            --name checklists-prod \
+            --resource-group rg-checklists-prod \
+            --type console \
+            --tail 100 || true
+          exit 1
