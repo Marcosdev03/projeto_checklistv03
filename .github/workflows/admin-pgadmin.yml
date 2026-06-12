@@ -70,7 +70,7 @@ jobs:
               --environment "$environment_id" \
               --image dpage/pgadmin4:latest \
               --ingress external \
-              --target-port 80 \
+              --target-port 5050 \
               --transport auto \
               --cpu 0.5 \
               --memory 1Gi \
@@ -80,8 +80,21 @@ jobs:
               --env-vars \
                 "PGADMIN_DEFAULT_EMAIL=sdfreitas7@gmail.com" \
                 "PGADMIN_DEFAULT_PASSWORD=secretref:pgadmin-password" \
-                "PGADMIN_DISABLE_POSTFIX=1"
+                "PGADMIN_DISABLE_POSTFIX=1" \
+                "PGADMIN_LISTEN_PORT=5050"
           fi
+
+          az containerapp update \
+            --name pgadmin-lojatech \
+            --resource-group rg-checklists-prod \
+            --set-env-vars \
+              "PGADMIN_LISTEN_PORT=5050" \
+              "PGADMIN_DISABLE_POSTFIX=1"
+
+          az containerapp ingress update \
+            --name pgadmin-lojatech \
+            --resource-group rg-checklists-prod \
+            --target-port 5050
 
           existing_rules="$(az containerapp ingress access-restriction list \
             --name pgadmin-lojatech \
