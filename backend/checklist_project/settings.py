@@ -14,7 +14,10 @@ DEBUG = config("DEBUG", default=False, cast=bool)
 
 ALLOWED_HOSTS = config(
     "ALLOWED_HOSTS",
-    default="checklists.tech,www.checklists.tech,127.0.0.1,localhost",
+    default=(
+        "checklists.tech,www.checklists.tech,"
+        ".azurecontainerapps.io,127.0.0.1,localhost"
+    ),
     cast=Csv()
 )
 
@@ -90,6 +93,7 @@ DATABASES = {
         'NAME': BASE_DIR / config('DB_NAME', default='db.sqlite3'),
     }
 }
+DATABASES['default']['CONN_HEALTH_CHECKS'] = True
 
 # =======================================================
 # 🔐 VALIDAÇÃO DE SENHA
@@ -213,5 +217,11 @@ CSRF_TRUSTED_ORIGINS = config(
 )
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=not DEBUG, cast=bool)
+SECURE_HSTS_SECONDS = config(
+    "SECURE_HSTS_SECONDS",
+    default=31536000 if not DEBUG else 0,
+    cast=int,
+)
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG

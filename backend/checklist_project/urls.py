@@ -9,7 +9,7 @@ def health(request):
 
 urlpatterns = [
     path("health/", health, name="health"),
-    path("api/auth/", include("authentication.urls")),
+    path("api/authentication/", include("authentication.urls")),
     path("api/tasks/", include("tasks.urls")),
     re_path(
         r"^(?!api/|health/|static/).*$",
