@@ -15,6 +15,8 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      REGISTRY_SERVER: acrlojatechprod-a8b7ctgnajcveccq.azurecr.io
 
     steps:
       - name: Checkout
@@ -27,21 +29,8 @@ jobs:
           tenant-id: ${{ secrets.CHECKLISTSPROD_AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.CHECKLISTSPROD_AZURE_SUBSCRIPTION_ID }}
 
-      - name: Resolve Azure Container Registry
-        id: registry
-        shell: bash
-        run: |
-          login_server="$(az acr show \
-            --name acrlojatechprod \
-            --resource-group rg-lojatech-prod \
-            --query loginServer \
-            --output tsv)"
-          test -n "$login_server"
-          echo "login-server=$login_server" >> "$GITHUB_OUTPUT"
-
       - name: Build and push image
         env:
-          REGISTRY_SERVER: ${{ steps.registry.outputs.login-server }}
           REGISTRY_USERNAME: ${{ secrets.CHECKLISTSPROD_REGISTRY_USERNAME }}
           REGISTRY_PASSWORD: ${{ secrets.CHECKLISTSPROD_REGISTRY_PASSWORD }}
           IMAGE_TAG: ${{ github.sha }}
@@ -56,7 +45,6 @@ jobs:
 
       - name: Deploy image to Container App
         env:
-          REGISTRY_SERVER: ${{ steps.registry.outputs.login-server }}
           REGISTRY_USERNAME: ${{ secrets.CHECKLISTSPROD_REGISTRY_USERNAME }}
           REGISTRY_PASSWORD: ${{ secrets.CHECKLISTSPROD_REGISTRY_PASSWORD }}
           IMAGE_TAG: ${{ github.sha }}
