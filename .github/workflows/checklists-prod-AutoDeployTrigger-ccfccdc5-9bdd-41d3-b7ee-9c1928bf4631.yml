@@ -1,0 +1,49 @@
+name: Trigger auto deployment for checklists-prod
+
+# When this action will be executed
+on:
+  # Automatically trigger it when detected changes in repo
+  push:
+    branches: 
+      [ producao ]
+    paths:
+    - '**'
+    - '.github/workflows/checklists-prod-AutoDeployTrigger-ccfccdc5-9bdd-41d3-b7ee-9c1928bf4631.yml'
+
+  # Allow manual trigger 
+  workflow_dispatch:      
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions: 
+      id-token: write #This is required for requesting the OIDC JWT Token
+      contents: read #Required when GH token is used to authenticate with private repo
+
+    steps:
+      - name: Checkout to the branch
+        uses: actions/checkout@v2
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.CHECKLISTSPROD_AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.CHECKLISTSPROD_AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.CHECKLISTSPROD_AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build and push container image to registry
+        uses: azure/container-apps-deploy-action@v2
+        with:
+          appSourcePath: ${{ github.workspace }}
+          _dockerfilePathKey_: _dockerfilePath_
+          _targetLabelKey_: _targetLabel_
+          registryUrl: 
+          registryUsername: ${{ secrets.CHECKLISTSPROD_REGISTRY_USERNAME }}
+          registryPassword: ${{ secrets.CHECKLISTSPROD_REGISTRY_PASSWORD }}
+          containerAppName: checklists-prod
+          resourceGroup: rg-lojatech-prod
+          imageToBuild: default/[parameters('containerAppName')]:${{ github.sha }}
+          _buildArgumentsKey_: |
+            _buildArgumentsValues_
+
+
