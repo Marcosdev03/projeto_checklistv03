@@ -1,5 +1,6 @@
 name: Cut over Checklist to public PostgreSQL
 
+# Uses the dedicated checklists_app role created on the shared server.
 on:
   push:
     branches:
