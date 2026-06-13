@@ -2,11 +2,6 @@ name: Cut over Checklist to public PostgreSQL
 
 # Uses the dedicated checklists_app role on the public shared server.
 on:
-  push:
-    branches:
-      - producao
-    paths:
-      - .github/workflows/cutover-postgresql-public.yml
   workflow_dispatch:
 
 permissions:

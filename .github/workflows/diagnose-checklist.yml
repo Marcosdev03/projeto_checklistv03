@@ -1,11 +1,6 @@
 name: Diagnose Checklist
 
 on:
-  push:
-    branches:
-      - producao
-    paths:
-      - .github/workflows/diagnose-checklist.yml
   workflow_dispatch:
 
 permissions:
