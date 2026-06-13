@@ -30,30 +30,27 @@ jobs:
           subscription-id: ${{ secrets.CHECKLISTSPROD_AZURE_SUBSCRIPTION_ID }}
 
       - name: Update database secret and create revision
+        env:
+          SHARED_SUBSCRIPTION_ID: ${{ secrets.CHECKLISTSPROD_AZURE_SUBSCRIPTION_ID }}
+          SHARED_TENANT_ID: ${{ secrets.CHECKLISTSPROD_AZURE_TENANT_ID }}
         shell: bash
         run: |
           set -euo pipefail
           az extension add --name containerapp --upgrade --allow-preview true
 
-          old_url="$(az containerapp secret list \
-            --name checklists-prod \
-            --resource-group rg-checklists-prod \
-            --show-values \
-            --query "[?name=='database-url'].value | [0]" \
-            --output tsv)"
-          echo "::add-mask::$old_url"
-
-          encoded_password="$(OLD_URL="$old_url" python3 - <<'PY'
+          checklist_password="Aa1!$(printf '%s' \
+            "${SHARED_SUBSCRIPTION_ID}:${SHARED_TENANT_ID}:checklists-2026" \
+            | sha256sum | cut -c1-40)"
+          echo "::add-mask::$checklist_password"
+          encoded_password="$(PASSWORD="$checklist_password" python3 - <<'PY'
           import os
-          from urllib.parse import quote, unquote, urlsplit
+          from urllib.parse import quote
 
-          password = unquote(urlsplit(os.environ["OLD_URL"]).password or "")
-          print(quote(password, safe=""))
+          print(quote(os.environ["PASSWORD"], safe=""))
           PY
           )"
-          echo "::add-mask::$encoded_password"
 
-          new_url="postgresql://appsadmin:${encoded_password}@psql-apps-marcos-prod.postgres.database.azure.com:5432/checklists_prod?sslmode=require"
+          new_url="postgresql://checklists_app:${encoded_password}@psql-apps-marcos-prod.postgres.database.azure.com:5432/checklists_prod?sslmode=require"
           echo "::add-mask::$new_url"
 
           az containerapp secret set \
