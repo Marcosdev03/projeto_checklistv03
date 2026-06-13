@@ -1,0 +1,58 @@
+name: Diagnose Checklist
+
+on:
+  push:
+    branches:
+      - producao
+    paths:
+      - .github/workflows/diagnose-checklist.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.CHECKLISTSPROD_AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.CHECKLISTSPROD_AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.CHECKLISTSPROD_AZURE_SUBSCRIPTION_ID }}
+
+      - name: Read current revision logs
+        shell: bash
+        run: |
+          set -euo pipefail
+          az extension add --name containerapp --upgrade --allow-preview true
+          revision="$(az containerapp revision list \
+            --name checklists-prod \
+            --resource-group rg-checklists-prod \
+            --query "sort_by(@, &properties.createdTime)[-1].name" \
+            --output tsv)"
+          state="$(az containerapp revision show \
+            --name checklists-prod \
+            --resource-group rg-checklists-prod \
+            --revision "$revision" \
+            --query "{name:name,health:properties.healthState,running:properties.runningState,provisioning:properties.provisioningState,error:properties.provisioningError}" \
+            --output json)"
+          logs="$(timeout 30s az containerapp logs show \
+            --name checklists-prod \
+            --resource-group rg-checklists-prod \
+            --revision "$revision" \
+            --type console \
+            --tail 100 2>&1 || true)"
+          escape() {
+            local value="$1"
+            value="${value//'%'/'%25'}"
+            value="${value//$'\r'/'%0D'}"
+            value="${value//$'\n'/'%0A'}"
+            printf '%s' "$value"
+          }
+          echo "::notice title=Checklist revision::$(escape "$state")"
+          echo "::warning title=Checklist logs::$(escape "$logs")"
