@@ -1,0 +1,129 @@
+name: Cut over Checklist to public PostgreSQL
+
+on:
+  push:
+    branches:
+      - producao
+    paths:
+      - .github/workflows/cutover-postgresql-public.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: cutover-checklists-postgresql
+  cancel-in-progress: true
+
+jobs:
+  cutover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.CHECKLISTSPROD_AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.CHECKLISTSPROD_AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.CHECKLISTSPROD_AZURE_SUBSCRIPTION_ID }}
+
+      - name: Update database secret and create revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          az extension add --name containerapp --upgrade --allow-preview true
+
+          old_url="$(az containerapp secret list \
+            --name checklists-prod \
+            --resource-group rg-checklists-prod \
+            --show-values \
+            --query "[?name=='database-url'].value | [0]" \
+            --output tsv)"
+          echo "::add-mask::$old_url"
+
+          encoded_password="$(OLD_URL="$old_url" python3 - <<'PY'
+          import os
+          from urllib.parse import quote, unquote, urlsplit
+
+          password = unquote(urlsplit(os.environ["OLD_URL"]).password or "")
+          print(quote(password, safe=""))
+          PY
+          )"
+          echo "::add-mask::$encoded_password"
+
+          new_url="postgresql://appsadmin:${encoded_password}@psql-apps-marcos-prod.postgres.database.azure.com:5432/checklists_prod?sslmode=require"
+          echo "::add-mask::$new_url"
+
+          az containerapp secret set \
+            --name checklists-prod \
+            --resource-group rg-checklists-prod \
+            --secrets "database-url=$new_url" \
+            >/dev/null
+
+          revision_suffix="db-$(date +%s)"
+          az containerapp update \
+            --name checklists-prod \
+            --resource-group rg-checklists-prod \
+            --revision-suffix "$revision_suffix" \
+            --no-wait \
+            --set-env-vars \
+              "DATABASE_URL=secretref:database-url" \
+              "DATABASE_SSL_REQUIRE=true" \
+              "DATABASE_CUTOVER_ID=$revision_suffix" \
+            >/dev/null
+
+          echo "CHECKLIST_REVISION=checklists-prod--$revision_suffix" >> "$GITHUB_ENV"
+
+      - name: Verify new revision
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          revision="$CHECKLIST_REVISION"
+
+          for attempt in $(seq 1 18); do
+            if ! az containerapp revision show \
+              --name checklists-prod \
+              --resource-group rg-checklists-prod \
+              --revision "$revision" \
+              >/dev/null 2>&1; then
+              echo "Waiting for revision $revision to be created."
+              sleep 5
+              continue
+            fi
+
+            state="$(az containerapp revision show \
+              --name checklists-prod \
+              --resource-group rg-checklists-prod \
+              --revision "$revision" \
+              --query "[properties.healthState,properties.runningState,properties.provisioningState]" \
+              --output tsv)"
+            echo "Revision $revision: $state"
+
+            health="$(echo "$state" | cut -f1)"
+            running="$(echo "$state" | cut -f2)"
+            provisioning="$(echo "$state" | cut -f3)"
+            if [ "$health" = "Healthy" ] && [ "$running" = "Running" ]; then
+              curl --fail --silent --show-error \
+                --connect-timeout 5 \
+                --max-time 10 \
+                https://checklists.tech/health/ | grep --quiet '"healthy"'
+              echo "Checklist is healthy on the new PostgreSQL server."
+              exit 0
+            fi
+
+            if [ "$running" = "Failed" ] || [ "$provisioning" = "Failed" ]; then
+              break
+            fi
+            sleep 5
+          done
+
+          az containerapp logs show \
+            --name checklists-prod \
+            --resource-group rg-checklists-prod \
+            --revision "$revision" \
+            --type console \
+            --tail 100 || true
+          exit 1

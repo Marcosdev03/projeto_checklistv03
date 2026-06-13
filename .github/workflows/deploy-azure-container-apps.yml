@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - producao
+    paths:
+      - Dockerfile
+      - entrypoint.sh
+      - backend/**
+      - frontend/**
   workflow_dispatch:
 
 permissions:
