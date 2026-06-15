@@ -6,10 +6,19 @@ services:
     container_name: checklists_backend
     env_file:
       - .env
-    ports:
-      - "8001:8000"
     restart: unless-stopped
     command: >
       sh -c "python manage.py migrate --noinput &&
              python manage.py collectstatic --noinput &&
              gunicorn checklist_project.wsgi:application --bind 0.0.0.0:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: checklists_frontend
+    ports:
+      - "8002:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
