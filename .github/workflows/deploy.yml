@@ -26,4 +26,4 @@ jobs:
             sleep 10
             docker compose ps
             docker compose logs --tail=100
-            curl -f http://127.0.0.1:8001/health/
+            curl -f http://127.0.0.1:8002
