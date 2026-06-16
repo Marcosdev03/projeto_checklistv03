@@ -18,7 +18,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
           script: |
-            cd "/opt/apps/checklists.tech"
+            cd ${{ secrets.VPS_PROJECT_PATH }}
             git fetch origin producao
             git reset --hard origin/producao
             docker compose down
